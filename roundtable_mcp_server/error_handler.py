@@ -103,6 +103,18 @@ def format_error_response(
     return message
 
 
+def handle_agent_error(
+    error: Exception,
+    agent_name: str,
+    instruction: str = ""
+) -> str:
+    """Handle agent execution error and return formatted message."""
+    log_error_with_context(
+        error, f"{agent_name}_execution", {"instruction": instruction[:200]}
+    )
+    return format_error_response(error, agent_name=agent_name)
+
+
 def log_error_with_context(
     error: Exception,
     operation: str,

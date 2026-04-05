@@ -152,3 +152,8 @@ def get_metrics_collector() -> MetricsCollector:
         _metrics_collector = MetricsCollector(enabled=enabled)
     
     return _metrics_collector
+
+
+def track_execution(agent: str, session_id: Optional[str] = None):
+    """Convenience wrapper around MetricsCollector.track_execution."""
+    return get_metrics_collector().track_execution(agent, session_id)
