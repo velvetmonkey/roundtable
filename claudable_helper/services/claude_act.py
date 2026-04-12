@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from claudable_helper.cli.adapters.claude_sdk_compat import ensure_compatible_claude_sdk
 from claude_code_sdk import query, ClaudeCodeOptions
 from claude_code_sdk.types import (
     Message, UserMessage, AssistantMessage, SystemMessage, ResultMessage,
@@ -188,6 +189,7 @@ async def generate_diff_with_logging(
     start_time = datetime.now()
     
     try:
+        ensure_compatible_claude_sdk()
         print(f"Starting Claude Code SDK query with prompt: {user_prompt[:100]}...")
         message_count = 0
         
@@ -196,6 +198,8 @@ async def generate_diff_with_logging(
             await log_callback("text", {"content": "🚀 Starting Claude Code execution..."})
         
         async for message in query(prompt=user_prompt, options=options):
+            if message is None:
+                continue
             messages_received.append(message)
             message_count += 1
             print(f"Received message #{message_count} type: {type(message).__name__}")

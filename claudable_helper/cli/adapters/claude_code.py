@@ -12,6 +12,7 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
 from claudable_helper.core.terminal_ui import ui
 from claudable_helper.models.messages import Message
+from .claude_sdk_compat import ensure_compatible_claude_sdk
 try:
     from claude_code_sdk import ClaudeSDKClient, ClaudeCodeOptions
 except ImportError:
@@ -144,6 +145,7 @@ class ClaudeCodeCLI(BaseCLI):
         ui.debug(f"Instruction: {instruction[:100]}...", "Claude SDK")
 
         try:
+            ensure_compatible_claude_sdk()
             # Change to project directory
             original_cwd = os.getcwd()
             os.chdir(project_path)
@@ -168,6 +170,9 @@ class ClaudeCodeCLI(BaseCLI):
                     claude_session_id = None
 
                     async for message_obj in client.receive_messages():
+                        if message_obj is None:
+                            continue
+
                         # Import SDK types for isinstance checks
                         try:
                             from anthropic.claude_code.types import (
