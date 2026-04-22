@@ -41,6 +41,40 @@ class CLIAvailabilityChecker:
         # Ensure the roundtable directory exists
         self.roundtable_dir.mkdir(exist_ok=True)
 
+    async def _run_help_check(
+        self, command: str, success_status: str, failure_label: str
+    ) -> Dict[str, Any]:
+        """Run a simple CLI help command and normalize the result shape."""
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                return {
+                    "available": True,
+                    "status": success_status,
+                    "last_checked": datetime.now().isoformat(),
+                    "error": None,
+                }
+
+            return {
+                "available": False,
+                "status": f"❌ {failure_label} failed with exit code {proc.returncode}",
+                "last_checked": datetime.now().isoformat(),
+                "error": stderr.decode() if stderr else None,
+            }
+        except Exception as e:
+            return {
+                "available": False,
+                "status": f"❌ {failure_label} error: {str(e)}",
+                "last_checked": datetime.now().isoformat(),
+                "error": str(e),
+            }
+
     async def check_codex_availability(self) -> Dict[str, Any]:
         """Check if Codex CLI is available."""
         try:
@@ -107,35 +141,11 @@ class CLIAvailabilityChecker:
 
     async def check_cursor_availability(self) -> Dict[str, Any]:
         """Check if Cursor Agent CLI is available."""
-        try:
-            proc = await asyncio.create_subprocess_shell(
-                "cursor --help",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await proc.communicate()
-
-            if proc.returncode == 0:
-                return {
-                    "available": True,
-                    "status": "✅ Cursor CLI Available",
-                    "last_checked": datetime.now().isoformat(),
-                    "error": None
-                }
-            else:
-                return {
-                    "available": False,
-                    "status": f"❌ Cursor CLI failed with exit code {proc.returncode}",
-                    "last_checked": datetime.now().isoformat(),
-                    "error": stderr.decode() if stderr else None
-                }
-        except Exception as e:
-            return {
-                "available": False,
-                "status": f"❌ Cursor CLI error: {str(e)}",
-                "last_checked": datetime.now().isoformat(),
-                "error": str(e)
-            }
+        return await self._run_help_check(
+            "cursor-agent -h",
+            "✅ Cursor Agent CLI Available",
+            "Cursor Agent CLI",
+        )
 
     async def check_gemini_availability(self) -> Dict[str, Any]:
         """Check if Gemini CLI is available."""
@@ -235,35 +245,19 @@ class CLIAvailabilityChecker:
 
     async def check_copilot_availability(self) -> Dict[str, Any]:
         """Check if GitHub Copilot CLI is available."""
-        try:
-            proc = await asyncio.create_subprocess_shell(
-                "gh copilot --help",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await proc.communicate()
+        result = await self._run_help_check(
+            "copilot --help",
+            "✅ GitHub Copilot CLI Available",
+            "GitHub Copilot CLI",
+        )
+        if result.get("available", False):
+            return result
 
-            if proc.returncode == 0:
-                return {
-                    "available": True,
-                    "status": "✅ GitHub Copilot CLI Available",
-                    "last_checked": datetime.now().isoformat(),
-                    "error": None
-                }
-            else:
-                return {
-                    "available": False,
-                    "status": f"❌ GitHub Copilot CLI failed with exit code {proc.returncode}",
-                    "last_checked": datetime.now().isoformat(),
-                    "error": stderr.decode() if stderr else None
-                }
-        except Exception as e:
-            return {
-                "available": False,
-                "status": f"❌ GitHub Copilot CLI error: {str(e)}",
-                "last_checked": datetime.now().isoformat(),
-                "error": str(e)
-            }
+        return await self._run_help_check(
+            "gh copilot --help",
+            "✅ GitHub Copilot CLI Available",
+            "GitHub Copilot CLI",
+        )
 
 
     async def check_grok_availability(self) -> Dict[str, Any]:
@@ -368,7 +362,6 @@ class CLIAvailabilityChecker:
             self.check_kilocode_availability(),
             self.check_crush_availability(),
             self.check_opencode_availability(),
-            self.check_antigravity_availability(),
             self.check_factory_availability(),
             self.check_rovo_availability(),
             return_exceptions=True

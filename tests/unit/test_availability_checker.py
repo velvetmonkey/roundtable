@@ -40,7 +40,7 @@ class TestCLIAvailabilityChecker:
     def test_get_available_clis_empty(self, tmp_path):
         """Test getting available CLIs with no cache."""
         checker = CLIAvailabilityChecker()
-        checker.cache_file = tmp_path / "test_cache.json"
+        checker.availability_file = tmp_path / "test_cache.json"
         
         result = checker.get_available_clis()
         

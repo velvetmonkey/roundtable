@@ -46,9 +46,15 @@ class CursorAgentCLI(BaseCLI):
                     ),
                 }
 
-            # Check if help output contains expected content
+            # Accept both older and current help output formats.
             help_output = stdout.decode() + stderr.decode()
-            if "cursor-agent" not in help_output.lower():
+            normalized_help = help_output.lower()
+            if (
+                "cursor-agent" not in normalized_help
+                and "cursor agent" not in normalized_help
+                and "start the cursor agent" not in normalized_help
+                and "usage: agent" not in normalized_help
+            ):
                 return {
                     "available": False,
                     "configured": False,

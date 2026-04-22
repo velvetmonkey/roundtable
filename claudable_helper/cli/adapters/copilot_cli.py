@@ -16,28 +16,50 @@ class CopilotCLI(BaseCLI):
     def __init__(self):
         super().__init__(cli_type="copilot")
         self.session_mapping: Dict[str, str] = {}
+        self._copilot_cmd: Optional[List[str]] = None
+
+    async def _resolve_command(self) -> Optional[List[str]]:
+        """Resolve the available Copilot CLI command."""
+        if self._copilot_cmd is not None:
+            return self._copilot_cmd
+
+        candidates = [
+            ["copilot"],
+            ["gh", "copilot"],
+        ]
+
+        for cmd in candidates:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    "--help",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                await proc.communicate()
+                if proc.returncode == 0:
+                    self._copilot_cmd = cmd
+                    return cmd
+            except FileNotFoundError:
+                continue
+
+        return None
 
     async def check_availability(self) -> Dict[str, Any]:
         """Check if GitHub Copilot CLI is available."""
         try:
-            proc = await asyncio.create_subprocess_shell(
-                "gh copilot --help",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await proc.communicate()
-
-            if proc.returncode == 0:
+            cmd = await self._resolve_command()
+            if cmd:
                 return {
                     "available": True,
                     "status": "✅ GitHub Copilot CLI Available",
                     "version": "latest",
                 }
-            else:
-                return {
-                    "available": False,
-                    "status": f"❌ GitHub Copilot CLI failed: {stderr.decode()}",
-                }
+
+            return {
+                "available": False,
+                "status": "❌ GitHub Copilot CLI not installed or not working",
+            }
         except Exception as e:
             return {
                 "available": False,
@@ -57,13 +79,31 @@ class CopilotCLI(BaseCLI):
         
         project_path = str(Path(project_path).absolute())
 
-        # Build command - gh copilot suggest
-        cmd = [
-            "gh",
-            "copilot",
-            "suggest",
-            instruction,
-        ]
+        copilot_cmd = await self._resolve_command()
+        if copilot_cmd is None:
+            yield Message(
+                project_id=project_path,
+                role="assistant",
+                message_type=MessageType.ERROR,
+                content="GitHub Copilot CLI not found. Install `copilot` or `gh copilot`.",
+                session_id=session_id or "default",
+                created_at=datetime.utcnow(),
+            )
+            return
+
+        if copilot_cmd == ["copilot"]:
+            cmd = [
+                *copilot_cmd,
+                "-p",
+                instruction,
+                "--allow-all",
+            ]
+        else:
+            cmd = [
+                *copilot_cmd,
+                "suggest",
+                instruction,
+            ]
 
         ui.info(f"Executing GitHub Copilot CLI: {' '.join(cmd)}", "CopilotCLI")
 

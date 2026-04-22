@@ -378,7 +378,8 @@ async def _execute_qwen_with_error_handling(
     project_path: str,
     session_id: Optional[str],
     model: Optional[str],
-    is_initial_prompt: bool
+    is_initial_prompt: bool,
+    ctx: Optional[Context] = None,
 ) -> str:
     """Execute Qwen with error handling."""
     qwen_cli = QwenCLI()
@@ -388,6 +389,7 @@ async def _execute_qwen_with_error_handling(
         raise AgentNotAvailableError(f"Qwen CLI not available: {availability.get('error', 'Unknown error')}")
     
     agent_responses = []
+    message_count = 0
     
     async for message in qwen_cli.execute_with_streaming(
         instruction=instruction,
@@ -397,6 +399,18 @@ async def _execute_qwen_with_error_handling(
         images=None,
         is_initial_prompt=is_initial_prompt
     ):
+        message_count += 1
+
+        if ctx is not None:
+            msg_type = getattr(message, "message_type", None)
+            msg_type_str = getattr(msg_type, "value", str(msg_type))
+            content = getattr(message, "content", "")
+            await ctx.report_progress(
+                progress=message_count,
+                total=None,
+                message=f"Qwen #{message_count}: {msg_type_str} => {content}",
+            )
+
         if hasattr(message, 'role') and message.role == "assistant":
             if message.content and message.content.strip():
                 agent_responses.append(message.content.strip())
@@ -1527,7 +1541,7 @@ async def qwen_subagent(
     if ERROR_HANDLING_AVAILABLE:
         try:
             return await _execute_qwen_with_error_handling(
-                instruction, project_path, session_id, model, is_initial_prompt
+                instruction, project_path, session_id, model, is_initial_prompt, ctx
             )
         except AgentNotAvailableError as e:
             return f"❌ Qwen CLI not available: {str(e)}"

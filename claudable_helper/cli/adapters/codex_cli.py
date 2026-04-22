@@ -49,7 +49,7 @@ class CodexCLI(BaseCLI):
                 "available": True,
                 "configured": True,
                 "models": self.get_supported_models(),
-                "default_models": ["gpt-5"],
+                "default_models": ["gpt-5-codex"],
             }
         except Exception as e:
             return {
@@ -74,8 +74,15 @@ class CodexCLI(BaseCLI):
         v0.118.  This adapter uses the non-interactive `codex exec` subcommand
         with ``--json`` to get JSONL event output.
         """
-        cli_model = self._get_cli_model_name(model) or "gpt-5"
-        ui.info(f"Starting Codex execution with model: {cli_model}", "Codex")
+        # Only pass -m when the caller explicitly requested a model.  The
+        # hardcoded "gpt-5" default breaks on ChatGPT-account codex installs
+        # (which only allow gpt-5-codex); letting codex use its configured
+        # default is the safest behavior.
+        cli_model = self._get_cli_model_name(model) if model else None
+        ui.info(
+            f"Starting Codex execution with model: {cli_model or '(codex default)'}",
+            "Codex",
+        )
 
         workdir_abs = os.path.abspath(project_path)
 
@@ -87,8 +94,9 @@ class CodexCLI(BaseCLI):
             "--cd", workdir_abs,
             "--json",
             "--dangerously-bypass-approvals-and-sandbox",
-            "-m", cli_model,
         ]
+        if cli_model:
+            cmd.extend(["-m", cli_model])
 
         # Attach images if provided
         if images:
