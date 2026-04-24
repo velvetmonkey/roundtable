@@ -105,21 +105,36 @@ class CodexCLI(BaseCLI):
                 if path:
                     cmd.extend(["-i", str(path)])
 
-        # Prompt goes last
-        cmd.append(instruction)
+        # Prompt routes via stdin, NOT argv — codex >= 0.118 with exec --json
+        # reads the prompt from stdin and hangs waiting for EOF even when a
+        # prompt is given as argv. Passing it on argv with stdin=DEVNULL made
+        # codex error "Reading additional input from stdin..." and exit
+        # non-zero. Per the characterization in flywheel-ideas'
+        # docs/cli-quirks.md (pinned to codex-cli 0.121.0), the discipline is:
+        #   - don't append the prompt to argv
+        #   - open stdin=PIPE (so codex doesn't inherit our JSON-RPC stdin)
+        #   - write the prompt then explicitly close stdin so codex sees EOF
 
         logger.info(f"[Codex] Running: {' '.join(cmd[:6])} ...")
 
         try:
-            # stdin=DEVNULL is critical — without it codex inherits the MCP
-            # server's stdin (the JSON-RPC transport) and hangs reading it.
+            # stdin=PIPE so we can write the prompt then close — prevents
+            # inheriting the MCP server's JSON-RPC transport stdin (the
+            # original DEVNULL concern) while giving codex the prompt bytes
+            # it needs.
             process = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.DEVNULL,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=workdir_abs,
             )
+
+            # Write prompt to stdin then close so codex sees EOF.
+            if process.stdin is not None:
+                process.stdin.write(instruction.encode("utf-8"))
+                await process.stdin.drain()
+                process.stdin.close()
 
             # Wait for the process to complete and collect all output.
             stdout_data, stderr_data = await asyncio.wait_for(
