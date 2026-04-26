@@ -12,11 +12,15 @@ import json
 import logging
 import os
 import sys
-import tomllib
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 import anyio
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 from mcp.server.fastmcp import FastMCP, Context
 from pydantic import BaseModel, Field

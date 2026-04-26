@@ -2,6 +2,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from claudable_helper.cli.adapters import codex_cli as codex_cli_module
 from claudable_helper.cli.adapters.codex_cli import CodexCLI
 
 
@@ -61,8 +62,9 @@ class TestCodexCLI:
             returncode=1,
         )
 
-        with patch(
-            "claudable_helper.cli.adapters.codex_cli.asyncio.create_subprocess_exec",
+        with patch.object(
+            codex_cli_module.asyncio,
+            "create_subprocess_exec",
             AsyncMock(return_value=process),
         ):
             messages = await _collect_messages(cli)
@@ -84,8 +86,9 @@ class TestCodexCLI:
             returncode=1,
         )
 
-        with patch(
-            "claudable_helper.cli.adapters.codex_cli.asyncio.create_subprocess_exec",
+        with patch.object(
+            codex_cli_module.asyncio,
+            "create_subprocess_exec",
             AsyncMock(return_value=process),
         ):
             messages = await _collect_messages(cli)
