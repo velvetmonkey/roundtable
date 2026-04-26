@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Code Scanning blocking issue resolved
 
+## [0.5.1] - 2026-04-26
+
+### Fixed
+- Codex subagent now preserves successful `codex exec --json` responses even when Codex exits non-zero during post-turn rollout bookkeeping.
+- Added regression coverage for completed-turn recovery and explicit `turn.failed` handling in the Codex adapter.
+
 ## [0.5.0] - 2024-12-09
 
 ### Added

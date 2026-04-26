@@ -10,7 +10,7 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
 
 from claudable_helper.core.terminal_ui import ui
 from claudable_helper.models.messages import Message
@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 
 class CodexCLI(BaseCLI):
     """Codex CLI implementation using `codex exec --json`"""
+
+    _BENIGN_STDERR_LINES = (
+        "Reading prompt from stdin...",
+        "failed to record rollout items: thread ",
+    )
 
     def __init__(self):
         super().__init__(CLIType.CODEX)
@@ -142,15 +147,39 @@ class CodexCLI(BaseCLI):
                 timeout=300,  # 5 minute hard timeout
             )
 
-            if stderr_data:
-                logger.debug(f"[Codex] stderr: {stderr_data.decode()[:500]}")
+            stderr_text = stderr_data.decode("utf-8", errors="replace").strip()
+            if stderr_text:
+                logger.debug(f"[Codex] stderr: {stderr_text[:500]}")
 
-            if process.returncode != 0:
-                error_text = (
-                    stderr_data.decode().strip()
-                    if stderr_data
-                    else f"exit code {process.returncode}"
+            parsed_messages, saw_turn_completed, saw_turn_failed, failure_text = (
+                self._parse_stdout_events(
+                    stdout_data.decode("utf-8", errors="replace"),
+                    project_path,
+                    session_id,
                 )
+            )
+            has_agent_output = any(m.message_type.value == "chat" for m in parsed_messages)
+
+            # Codex can emit a full successful JSONL turn and then exit non-zero
+            # while failing to persist rollout bookkeeping. Trust the JSONL turn
+            # outcome first; only promote the exit code to a user-facing failure
+            # when the stream itself failed or no usable answer was produced.
+            if process.returncode != 0:
+                if (
+                    has_agent_output
+                    and saw_turn_completed
+                    and not saw_turn_failed
+                    and self._stderr_is_benign(stderr_text)
+                ):
+                    logger.warning(
+                        "[Codex] ignoring non-zero exit after completed turn: %s",
+                        stderr_text[:500],
+                    )
+                    for message in parsed_messages:
+                        yield message
+                    return
+
+                error_text = failure_text or stderr_text or f"exit code {process.returncode}"
                 yield Message(
                     id=str(uuid.uuid4()),
                     project_id=project_path,
@@ -163,55 +192,21 @@ class CodexCLI(BaseCLI):
                 )
                 return
 
-            # Parse JSONL events from stdout
-            for line in stdout_data.decode().splitlines():
-                line = line.strip()
-                if not line:
-                    continue
+            for message in parsed_messages:
+                yield message
 
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                event_type = event.get("type", "")
-
-                if event_type == "item.completed":
-                    item = event.get("item", {})
-                    item_type = item.get("type", "")
-
-                    if item_type == "agent_message":
-                        text = item.get("text", "")
-                        if text.strip():
-                            yield Message(
-                                id=str(uuid.uuid4()),
-                                project_id=project_path,
-                                role="assistant",
-                                message_type="chat",
-                                content=text.strip(),
-                                metadata_json={"cli_type": self.cli_type.value},
-                                session_id=session_id,
-                                created_at=datetime.utcnow(),
-                            )
-
-                    elif item_type == "tool_call":
-                        tool_name = item.get("name", "unknown")
-                        summary = self._create_tool_summary(
-                            tool_name, {"args": item.get("arguments", "")}
-                        )
-                        yield Message(
-                            id=str(uuid.uuid4()),
-                            project_id=project_path,
-                            role="assistant",
-                            message_type="tool_use",
-                            content=summary,
-                            metadata_json={
-                                "cli_type": self.cli_type.value,
-                                "tool_name": tool_name,
-                            },
-                            session_id=session_id,
-                            created_at=datetime.utcnow(),
-                        )
+            if saw_turn_failed:
+                yield Message(
+                    id=str(uuid.uuid4()),
+                    project_id=project_path,
+                    role="assistant",
+                    message_type="error",
+                    content=f"Codex failed: {failure_text or 'turn.failed'}",
+                    metadata_json={"error": "execution_failed", "cli_type": "codex"},
+                    session_id=session_id,
+                    created_at=datetime.utcnow(),
+                )
+                return
 
         except asyncio.TimeoutError:
             yield Message(
@@ -258,6 +253,129 @@ class CodexCLI(BaseCLI):
 
     async def get_rollout_path(self, project_id: str) -> Optional[str]:
         return None
+
+    def _parse_stdout_events(
+        self,
+        stdout_text: str,
+        project_path: str,
+        session_id: Optional[str],
+    ) -> Tuple[List[Message], bool, bool, Optional[str]]:
+        """Parse codex JSONL stdout into message objects and turn state."""
+        messages: List[Message] = []
+        saw_turn_completed = False
+        saw_turn_failed = False
+        failure_text: Optional[str] = None
+
+        for raw_line in stdout_text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            event_type = event.get("type", "")
+
+            if event_type == "turn.completed":
+                saw_turn_completed = True
+                continue
+
+            if event_type in {"turn.failed", "error"}:
+                saw_turn_failed = True
+                failure_text = self._extract_error_text(
+                    event.get("error") if event_type == "turn.failed" else event
+                )
+                continue
+
+            if event_type != "item.completed":
+                continue
+
+            item = event.get("item", {})
+            item_type = item.get("type", "")
+
+            if item_type == "agent_message":
+                text = item.get("text", "")
+                if text.strip():
+                    messages.append(
+                        Message(
+                            id=str(uuid.uuid4()),
+                            project_id=project_path,
+                            role="assistant",
+                            message_type="chat",
+                            content=text.strip(),
+                            metadata_json={"cli_type": self.cli_type.value},
+                            session_id=session_id,
+                            created_at=datetime.utcnow(),
+                        )
+                    )
+                continue
+
+            if item_type == "tool_call":
+                tool_name = item.get("name", "unknown")
+                summary = self._create_tool_summary(
+                    tool_name, {"args": item.get("arguments", "")}
+                )
+                messages.append(
+                    Message(
+                        id=str(uuid.uuid4()),
+                        project_id=project_path,
+                        role="assistant",
+                        message_type="tool_use",
+                        content=summary,
+                        metadata_json={
+                            "cli_type": self.cli_type.value,
+                            "tool_name": tool_name,
+                        },
+                        session_id=session_id,
+                        created_at=datetime.utcnow(),
+                    )
+                )
+
+        return messages, saw_turn_completed, saw_turn_failed, failure_text
+
+    def _extract_error_text(self, payload: Any) -> Optional[str]:
+        """Extract the most useful error string from a codex JSON event."""
+        if payload is None:
+            return None
+        if isinstance(payload, str):
+            text = payload.strip()
+            if not text:
+                return None
+            try:
+                return self._extract_error_text(json.loads(text))
+            except json.JSONDecodeError:
+                return text
+        if isinstance(payload, dict):
+            for key in ("message", "error", "details"):
+                value = payload.get(key)
+                extracted = self._extract_error_text(value)
+                if extracted:
+                    return extracted
+            try:
+                return json.dumps(payload)
+            except Exception:
+                return str(payload)
+        return str(payload)
+
+    def _stderr_is_benign(self, stderr_text: str) -> bool:
+        """Return true when stderr contains only known codex exec noise."""
+        lines = [line.strip() for line in stderr_text.splitlines() if line.strip()]
+        if not lines:
+            return True
+
+        for line in lines:
+            if line == self._BENIGN_STDERR_LINES[0]:
+                continue
+            if (
+                self._BENIGN_STDERR_LINES[1] in line
+                and line.endswith(" not found")
+            ):
+                continue
+            return False
+
+        return True
 
     async def set_rollout_path(self, project_id: str, rollout_path: str) -> None:
         pass
