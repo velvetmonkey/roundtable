@@ -749,7 +749,7 @@ async def codex_subagent(
     instruction: str,
     project_path: Optional[str] = None,
     session_id: Optional[str] = None,
-    model: Optional[str] = 'gpt-5',
+    model: Optional[str] = None,
     is_initial_prompt: bool = False,
     ctx: Context = None
 ) -> str:
@@ -767,7 +767,7 @@ async def codex_subagent(
         instruction: The coding task or instruction to execute
         project_path: ABSOLUTE path to the project directory (e.g., '/home/user/myproject'). If not provided, uses current working directory.
         session_id: Optional session ID for conversation continuity
-        model: Optional model to use ( 'gpt-5' is the only supported model)
+        model: Optional model override. Leave None to use the codex CLI's configured default (~/.codex/config.toml). ChatGPT-account codex rejects explicit -m overrides; API-account codex accepts e.g. 'gpt-5', 'gpt-5-codex'.
         is_initial_prompt: Whether this is the first prompt in a new session
 
     Returns:
