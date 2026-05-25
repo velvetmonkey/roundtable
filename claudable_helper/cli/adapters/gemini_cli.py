@@ -62,9 +62,12 @@ class GeminiCLI(BaseCLI):
     async def _create_client(self) -> _ACPClient:
         """Create a new ACP client instance."""
         cmd = ["gemini", "--experimental-acp"]
+        import pwd as _pwd
+        real_home = _pwd.getpwuid(os.getuid()).pw_dir
         env = os.environ.copy()
-        # Prefer device-code-like flow if CLI supports it
+        env["HOME"] = real_home
         env.setdefault("NO_BROWSER", "1")
+        env.setdefault("GEMINI_CLI_TRUST_WORKSPACE", "true")
         client = _ACPClient(cmd, env=env)
 
         # Client-side request handlers: auto-approve permissions

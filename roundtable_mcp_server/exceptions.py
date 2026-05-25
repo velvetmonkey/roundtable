@@ -33,9 +33,15 @@ class AgentNotAvailableError(RoundtableError):
 
 class AgentExecutionError(RoundtableError):
     """Error during agent execution."""
-    
-    def __init__(self, agent_name: str, message: str, context: dict = None):
-        full_message = f"Agent '{agent_name}' execution failed: {message}"
+
+    def __init__(self, agent_name_or_message: str, message: str = None, context: dict = None):
+        if message is None:
+            # Single-arg form: AgentExecutionError("some message")
+            full_message = agent_name_or_message
+            agent_name = "unknown"
+        else:
+            agent_name = agent_name_or_message
+            full_message = f"Agent '{agent_name}' execution failed: {message}"
         super().__init__(full_message, "AGENT_EXECUTION_ERROR", context or {"agent": agent_name})
 
 

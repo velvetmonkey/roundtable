@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import os
+import pwd
 import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
@@ -127,12 +128,18 @@ class CodexCLI(BaseCLI):
             # inheriting the MCP server's JSON-RPC transport stdin (the
             # original DEVNULL concern) while giving codex the prompt bytes
             # it needs.
+            # Resolve real home dir — the session may override HOME to a tmp
+            # path, which breaks codex auth (it looks for ~/.codex/auth.json).
+            real_home = pwd.getpwuid(os.getuid()).pw_dir
+            proc_env = {**os.environ, "HOME": real_home}
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=workdir_abs,
+                env=proc_env,
             )
 
             # Write prompt to stdin then close so codex sees EOF.

@@ -1,6 +1,8 @@
 """Grok CLI adapter for Roundtable AI MCP Server."""
 
 import asyncio
+import os
+import pwd
 from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
@@ -24,6 +26,7 @@ class GrokCLI(BaseCLI):
                 "grok --help",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=self._get_env(),
             )
             stdout, stderr = await proc.communicate()
 
@@ -33,6 +36,12 @@ class GrokCLI(BaseCLI):
                 return {"available": False, "status": f"❌ Grok CLI failed: {stderr.decode()}"}
         except Exception as e:
             return {"available": False, "status": f"❌ Grok CLI error: {str(e)}"}
+
+    def _get_env(self) -> dict:
+        real_home = pwd.getpwuid(os.getuid()).pw_dir
+        env = os.environ.copy()
+        env["HOME"] = real_home
+        return env
 
     async def execute_with_streaming(
         self,
@@ -45,7 +54,9 @@ class GrokCLI(BaseCLI):
     ) -> AsyncIterator[Message]:
         """Execute Grok CLI with streaming output."""
         project_path = str(Path(project_path).absolute())
-        cmd = ["grok", "chat", instruction, "--project", project_path]
+        cmd = ["grok", "--prompt", instruction, "--directory", project_path]
+        if model:
+            cmd += ["--model", model]
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -53,6 +64,7 @@ class GrokCLI(BaseCLI):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=project_path,
+                env=self._get_env(),
             )
 
             if proc.stdout:
