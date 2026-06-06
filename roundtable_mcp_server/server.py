@@ -165,7 +165,7 @@ def parse_config_from_env() -> ServerConfig:
     if subagents_env:
         # Environment variable override - use specified subagents
         subagents = [s.strip().lower() for s in subagents_env.split(",") if s.strip()]
-        valid_subagents = {"codex", "claude", "cursor", "gemini", "qwen", "kiro", "copilot", "grok", "kilocode", "crush", "opencode", "factory", "rovo"}
+        valid_subagents = {"codex", "claude", "cursor", "gemini", "qwen", "kiro", "copilot", "grok", "kilocode", "crush", "opencode", "factory", "rovo", "antigravity"}
         config.subagents = [s for s in subagents if s in valid_subagents]
         config.verbose = os.getenv("CLI_MCP_VERBOSE", "false").lower() in ("true", "1", "yes", "on")
         logger.info(f"Verbose: {config.verbose}")
