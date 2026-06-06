@@ -10,6 +10,8 @@ tier; agy model ids are display strings (see `agy models`), e.g.
 """
 
 import asyncio
+import os
+import pwd
 from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
@@ -30,6 +32,16 @@ class AntigravityCLI(BaseCLI):
         super().__init__(cli_type="antigravity")
         self._session_store: Dict[str, str] = {}  # in-memory, per gemini adapter pattern
 
+    def _get_env(self) -> dict:
+        # Engine sessions run with an ISOLATED HOME (tmp path); agy's Google
+        # credentials live in the REAL home. Same fix as codex/gemini/grok
+        # (2d060c5) — without it agy demands OAuth and times out (field-tested
+        # in Monkey's council 2026-06-06 21:59).
+        real_home = pwd.getpwuid(os.getuid()).pw_dir
+        env = os.environ.copy()
+        env["HOME"] = real_home
+        return env
+
     async def get_session_id(self, project_id: str) -> Optional[str]:
         return self._session_store.get(project_id)
 
@@ -42,6 +54,7 @@ class AntigravityCLI(BaseCLI):
                 "agy --version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=self._get_env(),
             )
             stdout, stderr = await proc.communicate()
             if proc.returncode == 0:
@@ -77,6 +90,7 @@ class AntigravityCLI(BaseCLI):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=project_path,
+                env=self._get_env(),
             )
             # Prompt via stdin — argv-safe for multi-hundred-KB council briefs.
             if proc.stdin:
