@@ -1,9 +1,9 @@
 # Roundtable AI MCP Server
 
 [![PyPI version](https://badge.fury.io/py/roundtable-ai.svg)](https://badge.fury.io/py/roundtable-ai)
-[![Tests](https://github.com/allwiya/roundtable/actions/workflows/test.yml/badge.svg)](https://github.com/allwiya/roundtable/actions/workflows/test.yml)
-[![CodeQL](https://github.com/allwiya/roundtable/actions/workflows/codeql.yml/badge.svg)](https://github.com/allwiya/roundtable/actions/workflows/codeql.yml)
-[![codecov](https://codecov.io/gh/allwiya/roundtable/branch/main/graph/badge.svg)](https://codecov.io/gh/allwiya/roundtable)
+[![Tests](https://github.com/velvetmonkey/roundtable/actions/workflows/test.yml/badge.svg)](https://github.com/velvetmonkey/roundtable/actions/workflows/test.yml)
+[![CodeQL](https://github.com/velvetmonkey/roundtable/actions/workflows/codeql.yml/badge.svg)](https://github.com/velvetmonkey/roundtable/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/velvetmonkey/roundtable/branch/main/graph/badge.svg)](https://codecov.io/gh/velvetmonkey/roundtable)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
@@ -38,7 +38,7 @@ Stop copy-pasting between AI models. Roundtable AI is a local MCP server that le
 pip install roundtable-ai
 
 # Or from GitHub (until PyPI merge)
-pip install git+https://github.com/allwiya/roundtable.git@v0.5.0
+pip install git+https://github.com/velvetmonkey/roundtable.git@v0.5.1
 
 # Check available AI tools
 roundtable-ai --check
@@ -238,7 +238,7 @@ pip install roundtable-ai
 
 **Alternative (until PyPI merge):**
 ```bash
-pip install git+https://github.com/allwiya/roundtable.git@v0.5.0
+pip install git+https://github.com/velvetmonkey/roundtable.git@v0.5.1
 ```
 
 ### Using UV/UVX (Recommended for faster installs)
@@ -249,7 +249,7 @@ uvx roundtable-ai@latest
 
 **Alternative (until PyPI merge):**
 ```bash
-uvx --from git+https://github.com/allwiya/roundtable.git@v0.5.0 roundtable-ai
+uvx --from git+https://github.com/velvetmonkey/roundtable.git@v0.5.1 roundtable-ai
 ```
 
 ## IDE Integration

@@ -115,7 +115,7 @@ roundtable/
 
 ```bash
 # Clone repository
-git clone https://github.com/allwiya/roundtable.git
+git clone https://github.com/velvetmonkey/roundtable.git
 cd roundtable
 
 # Install in development mode

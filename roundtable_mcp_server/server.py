@@ -240,6 +240,42 @@ def initialize_config():
 
 SUBAGENT_TIMEOUT = 300  # 5 minutes per subagent call
 
+
+# asyncio.timeout() is Python 3.11+; provide a 3.10-compatible fallback so the
+# server (and its tests) run on every supported interpreter (requires-python >= 3.10).
+if sys.version_info >= (3, 11):
+    _async_timeout = asyncio.timeout
+else:
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _async_timeout(delay):
+        """Minimal backport of asyncio.timeout() for Python 3.10.
+
+        Cancels the current task when the deadline expires and surfaces the
+        cancellation as asyncio.TimeoutError, matching the 3.11+ semantics that
+        the call sites below rely on.
+        """
+        loop = asyncio.get_event_loop()
+        task = asyncio.current_task()
+        timed_out = False
+
+        def _on_timeout():
+            nonlocal timed_out
+            timed_out = True
+            task.cancel()
+
+        handle = loop.call_later(delay, _on_timeout)
+        try:
+            yield
+        except asyncio.CancelledError:
+            if timed_out:
+                raise asyncio.TimeoutError from None
+            raise
+        finally:
+            handle.cancel()
+
+
 # Helper functions with error handling
 async def _execute_codex_with_error_handling(
     instruction: str,
@@ -259,7 +295,7 @@ async def _execute_codex_with_error_handling(
     agent_responses = []
 
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in codex_cli.execute_with_streaming(
                 instruction=instruction,
                 project_path=project_path,
@@ -300,7 +336,7 @@ async def _execute_claude_with_error_handling(
     agent_responses = []
 
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in claude_cli.execute_with_streaming(
                 instruction=instruction,
                 project_path=project_path,
@@ -340,7 +376,7 @@ async def _execute_cursor_with_error_handling(
     agent_responses = []
 
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in cursor_cli.execute_with_streaming(
                 instruction=instruction,
                 project_path=project_path,
@@ -380,7 +416,7 @@ async def _execute_gemini_with_error_handling(
     agent_responses = []
 
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in gemini_cli.execute_with_streaming(
                 instruction=instruction,
                 project_path=project_path,
@@ -422,7 +458,7 @@ async def _execute_qwen_with_error_handling(
     message_count = 0
 
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in qwen_cli.execute_with_streaming(
                 instruction=instruction,
                 project_path=project_path,
@@ -474,7 +510,7 @@ async def _execute_kiro_with_error_handling(
     agent_responses = []
 
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in kiro_cli.execute_with_streaming(
                 instruction=instruction,
                 project_path=project_path,
@@ -514,7 +550,7 @@ async def _execute_copilot_with_error_handling(
     agent_responses = []
 
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in copilot_cli.execute_with_streaming(
                 instruction=instruction,
                 project_path=project_path,
@@ -546,7 +582,7 @@ async def _execute_grok_with_error_handling(instruction: str, project_path: str,
         raise AgentNotAvailableError(f"Grok CLI not available")
     agent_responses = []
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in grok_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
@@ -567,7 +603,7 @@ async def _execute_kilocode_with_error_handling(instruction: str, project_path: 
         raise AgentNotAvailableError(f"Kilocode CLI not available")
     agent_responses = []
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in kilocode_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
@@ -588,7 +624,7 @@ async def _execute_crush_with_error_handling(instruction: str, project_path: str
         raise AgentNotAvailableError(f"Crush CLI not available")
     agent_responses = []
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in crush_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
@@ -609,7 +645,7 @@ async def _execute_opencode_with_error_handling(instruction: str, project_path: 
         raise AgentNotAvailableError(f"OpenCode CLI not available")
     agent_responses = []
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in opencode_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
@@ -630,7 +666,7 @@ async def _execute_antigravity_with_error_handling(instruction: str, project_pat
         raise AgentNotAvailableError(f"Antigravity CLI not available")
     agent_responses = []
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in antigravity_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
@@ -651,7 +687,7 @@ async def _execute_factory_with_error_handling(instruction: str, project_path: s
         raise AgentNotAvailableError(f"Factory/Droid CLI not available")
     agent_responses = []
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in factory_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
@@ -672,7 +708,7 @@ async def _execute_rovo_with_error_handling(instruction: str, project_path: str,
         raise AgentNotAvailableError(f"Rovo Dev CLI not available")
     agent_responses = []
     try:
-        async with asyncio.timeout(SUBAGENT_TIMEOUT):
+        async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in rovo_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
