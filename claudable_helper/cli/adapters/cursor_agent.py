@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import pwd
 import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
@@ -24,6 +25,31 @@ class CursorAgentCLI(BaseCLI):
         super().__init__(CLIType.CURSOR)
         self._session_store = {}  # Simple in-memory session storage
 
+    def _get_env(self) -> dict:
+        # Engine sessions run with an ISOLATED HOME (tmp path) while
+        # cursor-agent's credentials live in the real home. Same fix as
+        # codex/gemini/grok (2d060c5), antigravity (8f64588) and opencode
+        # (93b17a1).
+        #
+        # Cursor needs THREE things, and missing any one of them makes it
+        # report "not installed" while it is installed:
+        #   HOME             -> ~/.cursor/cli-config.json
+        #   XDG_CONFIG_HOME  -> ~/.config/cursor/auth.json, where the token
+        #                       actually lives. Cursor does NOT fall back to
+        #                       $HOME/.config here, so HOME alone is not enough.
+        #   PATH             -> ~/.local/bin, absent from a non-login shell.
+        real_home = pwd.getpwuid(os.getuid()).pw_dir
+        env = os.environ.copy()
+        env["HOME"] = real_home
+        env.setdefault("XDG_CONFIG_HOME", f"{real_home}/.config")
+        if not env["XDG_CONFIG_HOME"].startswith(real_home):
+            env["XDG_CONFIG_HOME"] = f"{real_home}/.config"
+        bin_dir = f"{real_home}/.local/bin"
+        path = env.get("PATH", "")
+        if bin_dir not in path.split(":"):
+            env["PATH"] = f"{bin_dir}:{path}"
+        return env
+
     async def check_availability(self) -> Dict[str, Any]:
         """Check if Cursor Agent CLI is available"""
         try:
@@ -32,6 +58,7 @@ class CursorAgentCLI(BaseCLI):
                 "cursor-agent -h",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=self._get_env(),
             )
             stdout, stderr = await result.communicate()
 
@@ -277,6 +304,7 @@ class CursorAgentCLI(BaseCLI):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=project_repo_path,
+                env=self._get_env(),
             )
 
             # Wrap stdout with LineBuffer for large NDJSON handling
