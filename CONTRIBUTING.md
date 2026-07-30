@@ -55,7 +55,7 @@ mypy roundtable_mcp_server
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/allwiya/roundtable/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/velvetmonkey/roundtable/issues)
 2. If not, create a new issue with:
    - Clear title and description
    - Steps to reproduce
@@ -65,7 +65,7 @@ mypy roundtable_mcp_server
 
 ### Suggesting Features
 
-1. Check if the feature has been suggested in [Issues](https://github.com/allwiya/roundtable/issues)
+1. Check if the feature has been suggested in [Issues](https://github.com/velvetmonkey/roundtable/issues)
 2. If not, create a new issue with:
    - Clear description of the feature
    - Use cases and benefits
