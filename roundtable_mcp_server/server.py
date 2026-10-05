@@ -576,6 +576,8 @@ async def _execute_copilot_with_error_handling(
 
 
 async def _execute_grok_with_error_handling(instruction: str, project_path: str, session_id: Optional[str], model: Optional[str], is_initial_prompt: bool) -> str:
+    from claudable_helper.models.messages import MessageType
+
     grok_cli = GrokCLI()
     availability = await grok_cli.check_availability()
     if not availability.get("available", False):
@@ -584,6 +586,8 @@ async def _execute_grok_with_error_handling(instruction: str, project_path: str,
     try:
         async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in grok_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
+                if message.message_type == MessageType.ERROR:
+                    raise AgentExecutionError(message.content)
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
                         agent_responses.append(message.content.strip())
@@ -660,6 +664,8 @@ async def _execute_opencode_with_error_handling(instruction: str, project_path: 
 
 
 async def _execute_antigravity_with_error_handling(instruction: str, project_path: str, session_id: Optional[str], model: Optional[str], is_initial_prompt: bool) -> str:
+    from claudable_helper.models.messages import MessageType
+
     antigravity_cli = AntigravityCLI()
     availability = await antigravity_cli.check_availability()
     if not availability.get("available", False):
@@ -668,6 +674,8 @@ async def _execute_antigravity_with_error_handling(instruction: str, project_pat
     try:
         async with _async_timeout(SUBAGENT_TIMEOUT):
             async for message in antigravity_cli.execute_with_streaming(instruction=instruction, project_path=project_path, session_id=session_id, model=model, images=None, is_initial_prompt=is_initial_prompt):
+                if message.message_type == MessageType.ERROR:
+                    raise AgentExecutionError(message.content)
                 if hasattr(message, 'role') and message.role == "assistant":
                     if message.content and message.content.strip():
                         agent_responses.append(message.content.strip())
