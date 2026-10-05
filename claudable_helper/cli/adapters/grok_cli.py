@@ -54,7 +54,7 @@ class GrokCLI(BaseCLI):
     ) -> AsyncIterator[Message]:
         """Execute Grok CLI with streaming output."""
         project_path = str(Path(project_path).absolute())
-        cmd = ["grok", "--prompt", instruction, "--directory", project_path]
+        cmd = ["grok", "--single", instruction, "--cwd", project_path]
         if model:
             cmd += ["--model", model]
 

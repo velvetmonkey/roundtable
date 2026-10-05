@@ -3,8 +3,7 @@
 Rewritten 2026-06-06 against the real Antigravity CLI (binary `agy`, v1.0.6) —
 the previous stub invoked a nonexistent `antigravity` binary. Google replaces
 Gemini CLI with Antigravity on 2026-06-18; this adapter is the gemini seat's
-successor. Prompt goes via STDIN (`agy -p ""` non-interactive mode) so large
-council briefs never hit argv limits. Default model is the max-thinking pro
+successor. Prompt goes in `agy -p` for non-interactive mode. Default model is the max-thinking pro
 tier; agy model ids are display strings (see `agy models`), e.g.
 "Gemini 3.1 Pro (High)", "Gemini 3.5 Flash (High)", "Claude Opus 4.6 (Thinking)".
 """
@@ -79,24 +78,18 @@ class AntigravityCLI(BaseCLI):
         project_path = str(Path(project_path).absolute())
         cmd = [
             "agy",
-            "-p", "",
+            "-p", instruction,
             "--print-timeout", PRINT_TIMEOUT,
             "--model", model or DEFAULT_MODEL,
         ]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=project_path,
                 env=self._get_env(),
             )
-            # Prompt via stdin — argv-safe for multi-hundred-KB council briefs.
-            if proc.stdin:
-                proc.stdin.write(instruction.encode())
-                await proc.stdin.drain()
-                proc.stdin.close()
             if proc.stdout:
                 async for line in proc.stdout:
                     line_text = line.decode().strip()
