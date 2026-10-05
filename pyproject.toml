@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "fastmcp>=0.1.0",
+    "mcp<2",
     "aiohttp>=3.8.0",
     "claude_code_sdk",
     "pydantic>=2.7",
