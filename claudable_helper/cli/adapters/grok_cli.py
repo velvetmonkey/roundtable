@@ -54,7 +54,19 @@ class GrokCLI(BaseCLI):
     ) -> AsyncIterator[Message]:
         """Execute Grok CLI with streaming output."""
         project_path = str(Path(project_path).absolute())
-        cmd = ["grok", "--single", instruction, "--cwd", project_path]
+        if not instruction or not instruction.strip():
+            yield Message(
+                project_id=project_path,
+                role="assistant",
+                message_type=MessageType.ERROR,
+                content="Instruction must not be empty or whitespace-only.",
+                session_id=session_id or "default",
+                created_at=datetime.utcnow(),
+            )
+            return
+        # Clap treats a leading hyphen in a separate value as another option.
+        prompt_args = [f"--single={instruction}"] if instruction.startswith("-") else ["--single", instruction]
+        cmd = ["grok", *prompt_args, "--cwd", project_path]
         if model:
             cmd += ["--model", model]
 
@@ -67,10 +79,12 @@ class GrokCLI(BaseCLI):
                 env=self._get_env(),
             )
 
+            has_text = False
             if proc.stdout:
                 async for line in proc.stdout:
                     line_text = line.decode().strip()
                     if line_text:
+                        has_text = True
                         yield Message(
                             project_id=project_path,
                             role="assistant",
@@ -82,13 +96,22 @@ class GrokCLI(BaseCLI):
 
             await proc.wait()
 
-            if proc.returncode != 0 and proc.stderr:
-                stderr = await proc.stderr.read()
+            if proc.returncode != 0:
+                stderr = await proc.stderr.read() if proc.stderr else b""
                 yield Message(
                     project_id=project_path,
                     role="assistant",
                     message_type=MessageType.ERROR,
-                    content=f"Grok CLI error: {stderr.decode().strip()}",
+                    content=f"Grok CLI exited {proc.returncode}: {stderr.decode().strip()}",
+                    session_id=session_id or "default",
+                    created_at=datetime.utcnow(),
+                )
+            elif not has_text:
+                yield Message(
+                    project_id=project_path,
+                    role="assistant",
+                    message_type=MessageType.ERROR,
+                    content="Grok CLI exited 0 with no text.",
                     session_id=session_id or "default",
                     created_at=datetime.utcnow(),
                 )

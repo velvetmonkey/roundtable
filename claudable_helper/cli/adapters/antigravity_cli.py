@@ -76,6 +76,16 @@ class AntigravityCLI(BaseCLI):
         is_initial_prompt: bool = False,
     ) -> AsyncIterator[Message]:
         project_path = str(Path(project_path).absolute())
+        if not instruction or not instruction.strip():
+            yield Message(
+                project_id=project_path,
+                role="assistant",
+                message_type=MessageType.ERROR,
+                content="Instruction must not be empty or whitespace-only.",
+                session_id=session_id or "default",
+                created_at=datetime.utcnow(),
+            )
+            return
         cmd = [
             "agy",
             "-p", instruction,
@@ -90,10 +100,12 @@ class AntigravityCLI(BaseCLI):
                 cwd=project_path,
                 env=self._get_env(),
             )
+            has_text = False
             if proc.stdout:
                 async for line in proc.stdout:
                     line_text = line.decode().strip()
                     if line_text:
+                        has_text = True
                         yield Message(
                             project_id=project_path,
                             role="assistant",
@@ -112,6 +124,15 @@ class AntigravityCLI(BaseCLI):
                     role="assistant",
                     message_type=MessageType.ERROR,
                     content=f"agy exited {proc.returncode}: {stderr_tail.decode()[-500:]}",
+                    session_id=session_id or "default",
+                    created_at=datetime.utcnow(),
+                )
+            elif not has_text:
+                yield Message(
+                    project_id=project_path,
+                    role="assistant",
+                    message_type=MessageType.ERROR,
+                    content="agy exited 0 with no text.",
                     session_id=session_id or "default",
                     created_at=datetime.utcnow(),
                 )
